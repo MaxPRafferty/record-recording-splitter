@@ -1,2 +1,7 @@
 ./moody blues - days of future passed.mp3
+moody blues - days of future passed.mp3
 ./split_tracks
+split_tracks
+split_tracks/**/*
+__pycache__
+final_tracks
