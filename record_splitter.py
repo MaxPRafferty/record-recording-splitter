@@ -1,6 +1,7 @@
 import argparse
 import os
 import subprocess
+import json
 from datetime import timedelta
 
 # Assuming detect_silence.py and split_audio.py are in the same directory
@@ -110,21 +111,8 @@ def align_tracks_to_silences(tracks, silences, start_offset=0):
 
 
 def main(input_audio, output_dir, min_silence_len, silence_thresh):
-    ALBUM_DATA = {
-        "days of future passed": {
-            "artist": "moody blues",
-            "tracks": [
-                {"title": "The Day Begins", "duration": "5:45"},
-                {"title": "Dawn: Dawn Is A Feeling", "duration": "3:50"},
-                {"title": "The Morning: Another Morning", "duration": "3:40"},
-                {"title": "Lunch Break: Peak Hour", "duration": "5:21"},
-                {"title": "The Afternoon: Forever Afternoon (Tuesday?)", "duration": "8:25"},
-                {"title": "Evening: The Sun Set: Twilight Time", "duration": "6:39"},
-                {"title": "The Night: Nights In White Satin", "duration": "7:41"}
-            ],
-            "side_a_tracks": 4 
-        }
-    }
+    with open('album_data.json', 'r') as f:
+        ALBUM_DATA = json.load(f)
     
     print(f"Starting intelligent track splitting for {input_audio}...")
     artist, album_title = parse_artist_album_from_filename(input_audio)
