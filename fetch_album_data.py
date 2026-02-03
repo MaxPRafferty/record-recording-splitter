@@ -85,7 +85,7 @@ def main():
         sys.exit(1)
 
     # Create a directory for the album
-    output_dir = album.lower().replace(" ", "_")
+    output_dir = os.path.join("output", artist.lower().replace(" ", "_"), album.lower().replace(" ", "_"))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 

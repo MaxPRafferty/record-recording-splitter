@@ -117,7 +117,7 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
 
     # If output_dir is not specified, create it based on the album title
     if not output_dir:
-        output_dir = album_title.lower().replace(" ", "_")
+        output_dir = os.path.join("output", artist.lower().replace(" ", "_"), album_title.lower().replace(" ", "_"))
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
