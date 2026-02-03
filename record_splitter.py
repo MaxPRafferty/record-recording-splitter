@@ -111,11 +111,26 @@ def align_tracks_to_silences(tracks, silences, start_offset=0):
 
 
 def main(input_audio, output_dir, min_silence_len, silence_thresh):
-    with open('album_data.json', 'r') as f:
+    artist, album_title = parse_artist_album_from_filename(input_audio)
+    if not artist or not album_title:
+        return
+
+    # If output_dir is not specified, create it based on the album title
+    if not output_dir:
+        output_dir = album_title.lower().replace(" ", "_")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    album_data_path = os.path.join(output_dir, "album_data.json")
+    if not os.path.exists(album_data_path):
+        print(f"Error: '{album_data_path}' not found. Please run fetch_album_data.py first.", file=sys.stderr)
+        return
+
+    with open(album_data_path, 'r') as f:
         ALBUM_DATA = json.load(f)
     
     print(f"Starting intelligent track splitting for {input_audio}...")
-    artist, album_title = parse_artist_album_from_filename(input_audio)
     
     if not album_title or album_title.lower() not in ALBUM_DATA:
         print(f"Album '{album_title}' not found in database. Aborting.")
@@ -124,9 +139,6 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
     album_info = ALBUM_DATA[album_title.lower()]
     for track in album_info['tracks']:
         track['duration_ms'] = duration_to_ms(track['duration'])
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
 
     # 1. Detect all silences and the main side break
     silence_intervals = detect_silence_intervals(input_audio, min_silence_len, silence_thresh)
@@ -170,7 +182,7 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Split a record recording (MP3) into individual tracks.")
     parser.add_argument("input_audio", type=str, help="Path to the input MP3 file.")
-    parser.add_argument("output_dir", type=str, help="Directory to save the split track files.")
+    parser.add_argument("--output_dir", type=str, help="Directory to save the split track files (optional).")
     parser.add_argument("--min_silence_len", type=float, default=1.0,
                         help="Minimum length in seconds of a silence to be considered (default: 1.0s).")
     parser.add_argument("--silence_thresh", type=float, default=-40.0,

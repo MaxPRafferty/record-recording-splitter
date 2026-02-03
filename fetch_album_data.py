@@ -2,6 +2,26 @@ import argparse
 import json
 import requests
 import sys
+import os
+
+def parse_artist_album_from_filename(filepath):
+    """
+    Parses artist and album from a filename like 'artist - album.mp3'.
+    """
+    try:
+        filename = os.path.basename(filepath)
+        name_without_ext = os.path.splitext(filename)[0]
+        parts = name_without_ext.split(' - ')
+        if len(parts) == 2:
+            artist = parts[0].strip()
+            album = parts[1].strip()
+            return artist, album
+        else:
+            print(f"Warning: Could not parse artist and album from filename: {filename}")
+            return None, None
+    except Exception as e:
+        print(f"Error parsing filename: {e}")
+        return None, None
 
 def search_release(artist, album):
     """
@@ -55,15 +75,22 @@ def format_duration(milliseconds):
     return f"{minutes}:{seconds:02}"
 
 def main():
-    parser = argparse.ArgumentParser(description="Fetch album data from MusicBrainz and create album_data.json.")
-    parser.add_argument("artist", type=str, help="The artist of the album.")
-    parser.add_argument("album", type=str, help="The title of the album.")
-    parser.add_argument("--output", type=str, default="album_data.json", help="Output JSON file name.")
+    parser = argparse.ArgumentParser(description="Fetch album data from MusicBrainz and create album_data.json in a new folder.")
+    parser.add_argument("input_file", type=str, help="The input audio file (e.g., 'artist - album.mp3').")
     
     args = parser.parse_args()
 
-    print(f"Searching for '{args.album}' by '{args.artist}'...")
-    release_list = search_release(args.artist, args.album)
+    artist, album = parse_artist_album_from_filename(args.input_file)
+    if not artist or not album:
+        sys.exit(1)
+
+    # Create a directory for the album
+    output_dir = album.lower().replace(" ", "_")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    print(f"Searching for '{album}' by '{artist}'...")
+    release_list = search_release(artist, album)
 
     if not release_list:
         print("Could not find a matching release on MusicBrainz.", file=sys.stderr)
@@ -116,10 +143,11 @@ def main():
 
 
     # Write to the output file
+    output_path = os.path.join(output_dir, "album_data.json")
     try:
-        with open(args.output, 'w') as f:
+        with open(output_path, 'w') as f:
             json.dump(album_struct, f, indent=4)
-        print(f"\nSuccessfully created '{args.output}'.")
+        print(f"\nSuccessfully created '{output_path}'.")
         print("NOTE: The 'side_a_tracks' value is an estimate. Please verify and adjust it if necessary.")
 
     except IOError as e:
