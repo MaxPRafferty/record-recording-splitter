@@ -39,70 +39,45 @@ This project provides a Python script to intelligently split a single MP3 file (
 Name your input MP3 file in the format `Artist - Album.mp3`.
 For example: `moody blues - days of future passed.mp3`
 
-### 2. Update `ALBUM_DATA` in `record_splitter.py`
+### 2. Fetch Album Data
 
-The script uses a hardcoded `ALBUM_DATA` dictionary to fetch track information. You need to add an entry for your album in `record_splitter.py`.
-
-Open `record_splitter.py` and locate the `ALBUM_DATA` dictionary. Add a new entry like this:
-
-```python
-ALBUM_DATA = {
-    # Existing entries...
-    "your album title in lowercase": {
-        "artist": "your artist name in lowercase",
-        "tracks": [
-            {"title": "Track 1 Title", "duration": "MM:SS"},
-            {"title": "Track 2 Title", "duration": "MM:SS"},
-            # ... add all tracks
-        ],
-        "side_a_tracks": N # Optional: Number of tracks on Side A (defaults to half if not specified)
-    },
-    # Example:
-    "days of future passed": {
-        "artist": "moody blues",
-        "tracks": [
-            {"title": "The Day Begins", "duration": "5:45"},
-            {"title": "Dawn: Dawn Is A Feeling", "duration": "3:50"},
-            {"title": "The Morning: Another Morning", "duration": "3:40"},
-            {"title": "Lunch Break: Peak Hour", "duration": "5:21"},
-            {"title": "The Afternoon: Forever Afternoon (Tuesday?)", "duration": "8:25"},
-            {"title": "Evening: The Sun Set: Twilight Time", "duration": "6:39"},
-            {"title": "The Night: Nights In White Satin", "duration": "7:41"}
-        ],
-        "side_a_tracks": 4 
-    }
-}
-```
-*   **Keys (`"your album title in lowercase"`)**: Must exactly match the album part of your filename (e.g., `days of future passed` for `moody blues - days of future passed.mp3`), converted to lowercase.
-*   **`artist`**: The artist's name (lowercase).
-*   **`tracks`**: A list of dictionaries, each with:
-    *   `"title"`: The exact title of the track.
-    *   `"duration"`: The official duration of the track in "MM:SS" format.
-*   **`side_a_tracks` (Optional)**: Specify the number of tracks on Side A of the record. If omitted, the script will assume the tracks are split roughly in half.
-
-### 3. Run the script
-
-Execute the `record_splitter.py` script from your terminal:
+First, you need to fetch the album's tracklist and other metadata from MusicBrainz. This script will create a dedicated folder for the album, named `./output/<artist_slug>/<album_slug>/`, and place an `album_data.json` file inside it.
 
 ```bash
-/path/to/your/python record_splitter.py "path/to/your/input.mp3" "path/to/your/output_directory" [--min_silence_len SECONDS] [--silence_thresh DBFS]
+python3 fetch_album_data.py "path/to/your/input.mp3"
 ```
 
 **Example:**
 ```bash
-~/.pyenv/versions/3.14.2/bin/python record_splitter.py "moody blues - days of future passed.mp3" final_tracks
+python3 fetch_album_data.py "moody blues - days of future passed.mp3"
+```
+
+This will create `output/moody_blues/days_of_future_passed/album_data.json`.
+**NOTE**: The `side_a_tracks` value in the generated `album_data.json` is an estimate. Please verify and adjust it if necessary by editing the JSON file directly.
+
+### 3. Run the Splitter Script
+
+Once you have the `album_data.json` file in the correct album-specific directory, you can run the splitter script. It will automatically find the `album_data.json` in the `./output/<artist_slug>/<album_slug>/` directory (derived from your input filename) and save the split tracks into that same directory.
+
+```bash
+python3 record_splitter.py "path/to/your/input.mp3" [--min_silence_len SECONDS] [--silence_thresh DBFS]
+```
+
+**Example:**
+```bash
+python3 record_splitter.py "moody blues - days of future passed.mp3"
 ```
 
 **Arguments:**
 
 *   `input_audio`: Path to your input MP3 file.
-*   `output_dir`: Path to the directory where the split track files will be saved.
+*   `--output_dir` (Optional): If provided, overrides the default output directory structure (`./output/<artist_slug>/<album_slug>/`).
 *   `--min_silence_len` (Optional, default: 1.0): Minimum length in *seconds* of a silence to be considered by `ffmpeg`'s `silencedetect` filter. Adjust this if `ffmpeg` detects too many or too few silences.
 *   `--silence_thresh` (Optional, default: -40.0): The dBFS value below which audio is considered silent by `ffmpeg`. Lower (more negative) values mean quieter sounds are still considered "audio."
 
 ## Output
 
-The script will create a series of MP3 files in your specified `output_dir`, named with their track number and title (e.g., `01 - The Day Begins.mp3`).
+The script will create a series of MP3 files in the `./output/<artist_slug>/<album_slug>/` directory, named with their track number and title (e.g., `01 - The Day Begins.mp3`).
 
 ## Considerations
 
