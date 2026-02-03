@@ -5,3 +5,5 @@ split_tracks
 split_tracks/**/*
 __pycache__
 final_tracks
+temp_output
+temp_output_2
