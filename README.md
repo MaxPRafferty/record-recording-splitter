@@ -32,7 +32,38 @@ This project provides a Python script to intelligently split a single MP3 file (
     ffprobe -version
     ```
 
-## Usage
+## Primary Usage (Recommended)
+
+The `main.py` script is the easiest way to use this tool. It combines fetching the album data and splitting the audio into a single command.
+
+### 1. Prepare your input MP3 file
+
+Name your input MP3 file in the format `Artist - Album.mp3`.
+For example: `moody blues - days of future passed.mp3`
+
+### 2. Run the main script
+
+Execute the `main.py` script from your terminal, providing the path to your input file.
+
+```bash
+python3 main.py "path/to/your/input.mp3" [--min_silence_len SECONDS] [--silence_thresh DBFS]
+```
+
+**Example:**
+```bash
+python3 main.py "moody blues - days of future passed.mp3"
+```
+
+The script will perform all necessary steps:
+1.  Create a directory `./output/<artist_slug>/<album_slug>/`.
+2.  Fetch album data and save it as `album_data.json` in that directory.
+3.  Split the input audio and save the resulting tracks in the same directory.
+
+---
+
+## Manual Steps (Advanced Usage)
+
+If you prefer to run the steps individually, you can use the following scripts.
 
 ### 1. Prepare your input MP3 file
 

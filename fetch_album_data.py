@@ -74,13 +74,8 @@ def format_duration(milliseconds):
     seconds %= 60
     return f"{minutes}:{seconds:02}"
 
-def main():
-    parser = argparse.ArgumentParser(description="Fetch album data from MusicBrainz and create album_data.json in a new folder.")
-    parser.add_argument("input_file", type=str, help="The input audio file (e.g., 'artist - album.mp3').")
-    
-    args = parser.parse_args()
-
-    artist, album = parse_artist_album_from_filename(args.input_file)
+def main(input_file):
+    artist, album = parse_artist_album_from_filename(input_file)
     if not artist or not album:
         sys.exit(1)
 
@@ -155,4 +150,8 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Fetch album data from MusicBrainz and create album_data.json in a new folder.")
+    parser.add_argument("input_file", type=str, help="The input audio file (e.g., 'artist - album.mp3').")
+    
+    args = parser.parse_args()
+    main(args.input_file)
