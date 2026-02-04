@@ -113,7 +113,7 @@ def main():
 
     s_artist = sanitize_filename(artist)
     s_album = sanitize_filename(album)
-    output_dir = os.path.join(s_artist, s_album)
+    output_dir = os.path.join("output", s_artist, s_album)
     os.makedirs(output_dir, exist_ok=True)
 
     output_path = os.path.join(output_dir, "silences.json")

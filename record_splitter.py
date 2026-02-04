@@ -122,7 +122,7 @@ def get_silence_intervals_from_file(s_artist, s_album_title):
     """
     Loads silence intervals from the generated JSON file.
     """
-    silence_file = os.path.join(s_artist, s_album_title, "silences.json")
+    silence_file = os.path.join("output", s_artist, s_album_title, "silences.json")
 
     try:
         with open(silence_file, 'r') as f:
