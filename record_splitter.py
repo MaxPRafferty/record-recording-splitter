@@ -180,13 +180,13 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
 
     silence_intervals = get_silence_intervals_from_file(s_artist, s_album_title)
     if silence_intervals is None:
-        return
+        return 0
 
     side_break = find_side_break(silence_intervals)
     
     if not side_break:
         print("Could not identify a side break. Cannot perform intelligent splitting. Aborting.")
-        return
+        return 0
 
     # 2. Separate tracks and silences into Side A and Side B
     side_a_track_count = album_info.get('side_a_tracks', len(album_info['tracks']) // 2)
@@ -218,6 +218,7 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
         split_audio_segment(input_audio, track['start_ms'], track['end_ms'], output_filename)
 
     print("\nIntelligent track splitting complete.")
+    return len(silence_intervals)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Split a record recording (MP3) into individual tracks.")
