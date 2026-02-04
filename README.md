@@ -86,9 +86,24 @@ python3 fetch_album_data.py "moody blues - days of future passed.mp3"
 This will create `output/moody_blues/days_of_future_passed/album_data.json`.
 **NOTE**: The `side_a_tracks` value in the generated `album_data.json` is an estimate. Please verify and adjust it if necessary by editing the JSON file directly.
 
-### 3. Run the Splitter Script
+### 3. Detect Silences
 
-Once you have the `album_data.json` file in the correct album-specific directory, you can run the splitter script. It will automatically find the `album_data.json` in the `./output/<artist_slug>/<album_slug>/` directory (derived from your input filename) and save the split tracks into that same directory.
+Next, run the `find_silences.py` script to detect silence intervals in your audio file. This will create a `silences.json` file in a new directory structure, `<artist>/<album>/`.
+
+```bash
+python3 find_silences.py "path/to/your/input.mp3" [--min_silence_len SECONDS] [--silence_thresh DBFS]
+```
+
+**Example:**
+```bash
+python3 find_silences.py "moody blues - days of future passed.mp3"
+```
+
+This will create `moody_blues/days_of_future_passed/silences.json`.
+
+### 4. Run the Splitter Script
+
+Once you have the `album_data.json` and `silences.json` files, you can run the splitter script. It will automatically find the necessary files and save the split tracks into the `./output/<artist_slug>/<album_slug>/` directory.
 
 ```bash
 python3 record_splitter.py "path/to/your/input.mp3" [--min_silence_len SECONDS] [--silence_thresh DBFS]

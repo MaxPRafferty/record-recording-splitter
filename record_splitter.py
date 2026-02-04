@@ -4,8 +4,9 @@ import subprocess
 import json
 from datetime import timedelta
 
-# Assuming detect_silence.py and split_audio.py are in the same directory
-from detect_silence import detect_silence_intervals
+import sys
+# The silence detection is now handled by find_silences.py
+# from detect_silence import detect_silence_intervals
 from split_audio import split_audio_segment
 
 def get_audio_duration(audio_path):
@@ -110,14 +111,43 @@ def align_tracks_to_silences(tracks, silences, start_offset=0):
     return aligned_tracks
 
 
+def sanitize_filename(name):
+    """
+    Removes or replaces characters that are problematic in filenames.
+    This is a simple version; a more robust solution might be needed.
+    """
+    return name.lower().replace(" ", "_").replace("&", "and")
+
+def get_silence_intervals_from_file(s_artist, s_album_title):
+    """
+    Loads silence intervals from the generated JSON file.
+    """
+    silence_file = os.path.join(s_artist, s_album_title, "silences.json")
+
+    try:
+        with open(silence_file, 'r') as f:
+            silence_intervals = json.load(f)
+        print(f"--- Silence data loaded from {silence_file} ---")
+        return silence_intervals
+    except FileNotFoundError:
+        print(f"Error: Silence file '{silence_file}' not found. Aborting.", file=sys.stderr)
+        return None
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode JSON from '{silence_file}'. Aborting.", file=sys.stderr)
+        return None
+
 def main(input_audio, output_dir, min_silence_len, silence_thresh):
     artist, album_title = parse_artist_album_from_filename(input_audio)
     if not artist or not album_title:
         return
 
+    # Sanitize for use in paths
+    s_artist = sanitize_filename(artist)
+    s_album_title = sanitize_filename(album_title)
+
     # If output_dir is not specified, create it based on the album title
     if not output_dir:
-        output_dir = os.path.join("output", artist.lower().replace(" ", "_"), album_title.lower().replace(" ", "_"))
+        output_dir = os.path.join("output", s_artist, s_album_title)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -140,8 +170,18 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
     for track in album_info['tracks']:
         track['duration_ms'] = duration_to_ms(track['duration'])
 
-    # 1. Detect all silences and the main side break
-    silence_intervals = detect_silence_intervals(input_audio, min_silence_len, silence_thresh)
+    # 1. Detect all silences by calling the new script
+    print("--- Running silence detection ---")
+    silence_py_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'find_silences.py')
+
+    subprocess.run([sys.executable, silence_py_path, input_audio,
+                    "--min_silence_len", str(min_silence_len),
+                    "--silence_thresh", str(silence_thresh)], check=True)
+
+    silence_intervals = get_silence_intervals_from_file(s_artist, s_album_title)
+    if silence_intervals is None:
+        return
+
     side_break = find_side_break(silence_intervals)
     
     if not side_break:
