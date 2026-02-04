@@ -1,9 +1,6 @@
 import argparse
 import sys
 
-import os
-import subprocess
-
 try:
     # Import the main functions from the other scripts
     from fetch_album_data import main as fetch_main
@@ -33,27 +30,15 @@ def main():
             print("--- Step 1 Failed: Could not fetch album data. Aborting. ---", file=sys.stderr)
             sys.exit(1)
     
-    # --- Step 2: Detect Silences ---
-    print("--- Step 2: Detecting Silences ---")
-    try:
-        silence_py_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'find_silences.py')
-        subprocess.run([sys.executable, silence_py_path, args.input_audio,
-                        "--min_silence_len", str(args.min_silence_len),
-                        "--silence_thresh", str(args.silence_thresh)], check=True)
-        print("--- Silence detection complete. ---\n")
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"--- Step 2 Failed: Could not detect silences. Error: {e} ---", file=sys.stderr)
-        sys.exit(1)
-
-    # --- Step 3: Split Audio ---
-    print("--- Step 3: Splitting Audio ---")
+    # --- Step 2: Split Audio ---
+    print("--- Step 2: Splitting Audio ---")
     try:
         # The splitter's main function takes output_dir as None by default
         split_main(args.input_audio, None, args.min_silence_len, args.silence_thresh)
         print("--- Audio splitting complete. ---")
     except SystemExit as e:
         if e.code != 0:
-            print("--- Step 3 Failed: Could not split audio. ---", file=sys.stderr)
+            print("--- Step 2 Failed: Could not split audio. ---", file=sys.stderr)
             sys.exit(1)
 
 if __name__ == "__main__":
