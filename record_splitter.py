@@ -48,15 +48,16 @@ def parse_artist_album_from_filename(filepath):
         print(f"Error parsing filename: {e}")
         return None, None
 
-def find_side_break(silence_intervals):
+def find_side_break(silence_intervals, side_a_duration_ms):
     """
-    Finds the longest silence interval, assumed to be the side break.
+    Finds the silence interval that is closest to the calculated end of Side A.
     """
     if not silence_intervals:
         return None
     
-    longest_silence = max(silence_intervals, key=lambda i: i[1] - i[0])
-    return longest_silence
+    # Find the silence that is closest to our expected split point
+    closest_silence = min(silence_intervals, key=lambda s: abs(s[0] - side_a_duration_ms))
+    return closest_silence
 
 def duration_to_ms(duration_str):
     """Converts MM:SS string to milliseconds."""
@@ -65,49 +66,22 @@ def duration_to_ms(duration_str):
     seconds = int(parts[1])
     return (minutes * 60 + seconds) * 1000
 
-def align_tracks_to_silences(tracks, silences, start_offset=0):
+def split_tracks_by_duration(tracks, start_offset=0):
     """
-    Aligns a list of tracks with a list of silences to find precise split points.
-    Returns a list of tuples: (track_title, start_ms, end_ms)
+    Creates a list of tracks with start and end times based on their duration.
     """
     aligned_tracks = []
-    cumulative_duration = 0
     last_split_point = start_offset
 
-    # If there are no silences to align to, fall back to using cumulative durations
-    if not silences:
-        print("Warning: No silences found for this side. Falling back to cumulative duration splitting.")
-        for i, track in enumerate(tracks):
-            start_ms = last_split_point
-            end_ms = start_ms + track['duration_ms']
-            aligned_tracks.append({
-                "title": track['title'],
-                "start_ms": start_ms,
-                "end_ms": end_ms
-            })
-            last_split_point = end_ms
-        return aligned_tracks
-
-    # --- Original 'best-fit' logic ---
     for i, track in enumerate(tracks):
-        cumulative_duration += track['duration_ms']
-        
-        # Find the silence that is closest to our expected split point
-        # This is the 'best-fit' part of the algorithm
-        closest_silence = min(silences, key=lambda s: abs(s[0] - (start_offset + cumulative_duration)))
-        
-        # The end of the track is the beginning of the closest silence
-        split_point = closest_silence[0]
-        
+        start_ms = last_split_point
+        end_ms = start_ms + track['duration_ms']
         aligned_tracks.append({
             "title": track['title'],
-            "start_ms": last_split_point,
-            "end_ms": split_point
+            "start_ms": start_ms,
+            "end_ms": end_ms
         })
-        
-        # The next track starts at the end of this silence
-        last_split_point = closest_silence[1]
-
+        last_split_point = end_ms
     return aligned_tracks
 
 
@@ -139,7 +113,7 @@ def get_silence_intervals_from_file(s_artist, s_album_title):
 def main(input_audio, output_dir, min_silence_len, silence_thresh):
     artist, album_title = parse_artist_album_from_filename(input_audio)
     if not artist or not album_title:
-        return
+        return 0
 
     # Sanitize for use in paths
     s_artist = sanitize_filename(artist)
@@ -155,7 +129,7 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
     album_data_path = os.path.join(output_dir, "album_data.json")
     if not os.path.exists(album_data_path):
         print(f"Error: '{album_data_path}' not found. Please run fetch_album_data.py first.", file=sys.stderr)
-        return
+        return 0
 
     with open(album_data_path, 'r') as f:
         ALBUM_DATA = json.load(f)
@@ -164,43 +138,75 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
     
     if not album_title or album_title.lower() not in ALBUM_DATA:
         print(f"Album '{album_title}' not found in database. Aborting.")
-        return
+        return 0
         
     album_info = ALBUM_DATA[album_title.lower()]
     for track in album_info['tracks']:
         track['duration_ms'] = duration_to_ms(track['duration'])
 
-    # 1. Detect all silences by calling the new script
-    print("--- Running silence detection ---")
-    silence_py_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'find_silences.py')
+    # --- New Side-Break Logic ---
 
-    subprocess.run([sys.executable, silence_py_path, input_audio,
-                    "--min_silence_len", str(min_silence_len),
-                    "--silence_thresh", str(silence_thresh)], check=True)
-
-    silence_intervals = get_silence_intervals_from_file(s_artist, s_album_title)
-    if silence_intervals is None:
-        return 0
-
-    side_break = find_side_break(silence_intervals)
-    
-    if not side_break:
-        print("Could not identify a side break. Cannot perform intelligent splitting. Aborting.")
-        return 0
-
-    # 2. Separate tracks and silences into Side A and Side B
+    # 1. Calculate the duration of each side
     side_a_track_count = album_info.get('side_a_tracks', len(album_info['tracks']) // 2)
     side_a_tracks = album_info['tracks'][:side_a_track_count]
     side_b_tracks = album_info['tracks'][side_a_track_count:]
+    side_a_duration_ms = sum(t['duration_ms'] for t in side_a_tracks)
+    side_b_duration_ms = sum(t['duration_ms'] for t in side_b_tracks)
 
-    side_a_silences = [s for s in silence_intervals if s[1] < side_break[0]]
-    side_b_silences = [s for s in silence_intervals if s[0] > side_break[1]]
+    print(f"Calculated Side A length: {str(timedelta(milliseconds=side_a_duration_ms)).split('.')[0]}")
+    print(f"Calculated Side B length: {str(timedelta(milliseconds=side_b_duration_ms)).split('.')[0]}")
+
+    # 2. Iteratively find the best side break
+    best_side_break = None
+    silence_threshold_step = 5.0 # Increase threshold by 5dB
+    max_retries = 10
     
-    # 3. Align tracks for each side
-    aligned_side_a = align_tracks_to_silences(side_a_tracks, side_a_silences, start_offset=0)
-    aligned_side_b = align_tracks_to_silences(side_b_tracks, side_b_silences, start_offset=side_break[1])
+    initial_silence_thresh = silence_thresh # Store initial value
 
-    all_aligned_tracks = aligned_side_a + aligned_side_b
+    for i in range(max_retries):
+        current_silence_thresh = initial_silence_thresh + (i * silence_threshold_step)
+        print(f"\n--- Attempt {i+1}/{max_retries}: Detecting silences at {current_silence_thresh}dB ---")
+
+        # Run silence detection
+        silence_py_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'find_silences.py')
+        subprocess.run([sys.executable, silence_py_path, input_audio,
+                        "--min_silence_len", str(min_silence_len),
+                        "--silence_thresh", str(current_silence_thresh)], check=True)
+        
+        silence_intervals = get_silence_intervals_from_file(s_artist, s_album_title)
+
+        if not silence_intervals:
+            print("--- No silences found at this threshold. ---")
+            continue
+
+        # Find the silence closest to the calculated end of Side A
+        potential_break = find_side_break(silence_intervals, side_a_duration_ms)
+        
+        if potential_break:
+            break_start = potential_break[0]
+            break_end = potential_break[1]
+            break_duration = break_end - break_start
+            break_diff = abs(break_start - side_a_duration_ms)
+            
+            print(f"Closest silence: Start={str(timedelta(milliseconds=break_start)).split('.')[0]}, End={str(timedelta(milliseconds=break_end)).split('.')[0]}, Duration={break_duration / 1000:.2f}s")
+            print(f"Difference from calculated Side A end: {break_diff / 1000:.2f}s")
+
+            if break_diff <= 5000: # 5-second threshold
+                print("--- Found a good side break! ---")
+                best_side_break = potential_break
+                break
+    
+    if not best_side_break:
+        print("\n--- Warning: Could not find a suitable side break after multiple attempts. ---")
+        print("--- The split tracks may not be accurate. Will try to split as one side. ---")
+        all_aligned_tracks = split_tracks_by_duration(album_info['tracks'])
+    else:
+        # 3. Split tracks by duration for each side
+        # Side A starts at 0 and ends at the start of the side break
+        aligned_side_a = split_tracks_by_duration(side_a_tracks, start_offset=0)
+        # Side B starts at the end of the side break
+        aligned_side_b = split_tracks_by_duration(side_b_tracks, start_offset=best_side_break[1])
+        all_aligned_tracks = aligned_side_a + aligned_side_b
 
     print("\nAligned Tracks:")
     for i, track in enumerate(all_aligned_tracks):
@@ -218,7 +224,7 @@ def main(input_audio, output_dir, min_silence_len, silence_thresh):
         split_audio_segment(input_audio, track['start_ms'], track['end_ms'], output_filename)
 
     print("\nIntelligent track splitting complete.")
-    return len(silence_intervals)
+    return len(silence_intervals) if 'silence_intervals' in locals() and silence_intervals is not None else 0
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Split a record recording (MP3) into individual tracks.")

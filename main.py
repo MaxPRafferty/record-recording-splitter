@@ -1,8 +1,5 @@
 import argparse
 import sys
-import json
-import os
-from record_splitter import parse_artist_album_from_filename, sanitize_filename
 
 try:
     # Import the main functions from the other scripts
@@ -32,36 +29,17 @@ def main():
         if e.code != 0:
             print("--- Step 1 Failed: Could not fetch album data. Aborting. ---", file=sys.stderr)
             sys.exit(1)
-
-    # --- Step 2: Split Audio with Retry Logic ---
+    
+    # --- Step 2: Split Audio ---
     print("--- Step 2: Splitting Audio ---")
-
-    artist, album_title = parse_artist_album_from_filename(args.input_audio)
-    s_artist = sanitize_filename(artist)
-    s_album_title = sanitize_filename(album_title)
-    album_data_path = os.path.join("output", s_artist, s_album_title, "album_data.json")
-
     try:
-        with open(album_data_path, 'r') as f:
-            album_data = json.load(f)
-        num_tracks = len(album_data[album_title.lower()]['tracks'])
-    except (FileNotFoundError, KeyError):
-        print(f"Error: Could not read album data from {album_data_path}. Aborting.", file=sys.stderr)
-        sys.exit(1)
-
-    max_retries = 10
-    for i in range(max_retries):
-        current_silence_thresh = args.silence_thresh + (i * 5)
-        print(f"\n--- Attempt {i+1}/{max_retries}: Splitting with silence threshold at {current_silence_thresh}dB ---")
-        
-        num_silences = split_main(args.input_audio, None, args.min_silence_len, current_silence_thresh)
-
-        if num_tracks -1 <= num_silences <= num_tracks + 2:
-            print(f"\n--- Found a suitable number of silences ({num_silences}). Splitting complete. ---")
-            break
-    else:
-        print(f"\n--- Warning: Could not find a suitable number of silences after {max_retries} attempts. ---")
-        print("--- The split tracks may not be accurate. ---")
+        # The splitter's main function takes output_dir as None by default
+        split_main(args.input_audio, None, args.min_silence_len, args.silence_thresh)
+        print("--- Audio splitting complete. ---")
+    except SystemExit as e:
+        if e.code != 0:
+            print("--- Step 2 Failed: Could not split audio. ---", file=sys.stderr)
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
